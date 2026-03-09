@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AirPulse - Air Quality Monitoring</title>
+  <meta name="description" content="Real-time city AQI dashboard with citizen SMS alerts. Monitor air quality across cities and stay safe." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <nav class="navbar">
+    <div class="nav-brand">
+      <span class="brand-icon">AQ</span>
+      <span class="brand-text">Air<strong>Pulse</strong></span>
+    </div>
+    <div class="nav-links">
+      <a href="#dashboard">Dashboard</a>
+      <a href="#alerts">Alerts</a>
+      <a href="#about">About</a>
+    </div>
+  </nav>
+
+  <header class="hero" id="dashboard">
+    <div class="hero-content">
+      <p class="hero-tag">Real-time Monitoring</p>
+      <h1>City Air Quality<br /><span class="gradient-text">Dashboard</span></h1>
+      <p class="hero-desc">Track AQI levels, pollutant breakdowns, and set up instant SMS alerts to stay informed and safe.</p>
+      <div class="search-box">
+        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" id="citySearch" placeholder="Search cities..." autocomplete="off" />
+      </div>
+    </div>
+  </header>
+
+  <section class="stats-strip">
+    <div class="stat-item">
+      <span class="stat-number" id="statCities">0</span>
+      <span class="stat-label">Cities Monitored</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-number" id="statAlerts">0</span>
+      <span class="stat-label">Alerts Sent Today</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-number" id="statUsers">0</span>
+      <span class="stat-label">Subscribers</span>
+    </div>
+  </section>
+
+  <section class="aqi-section">
+    <div class="section-header">
+      <h2>Live AQI Overview</h2>
+      <div class="filter-tabs" id="filterTabs">
+        <button class="tab active" data-filter="all">All</button>
+        <button class="tab" data-filter="good">Good</button>
+        <button class="tab" data-filter="moderate">Moderate</button>
+        <button class="tab" data-filter="unhealthy">Unhealthy</button>
+        <button class="tab" data-filter="hazardous">Hazardous</button>
+      </div>
+    </div>
+    <div class="aqi-grid" id="aqiGrid"></div>
+  </section>
+
+  <section class="detail-section hidden" id="detailSection">
+    <button class="back-btn" id="backBtn"><- Back to Overview</button>
+    <div class="detail-header" id="detailHeader"></div>
+    <div class="pollutant-grid" id="pollutantGrid"></div>
+    <div class="aqi-chart-wrapper">
+      <h3>24-Hour AQI Trend (estimated)</h3>
+      <div class="aqi-chart" id="aqiChart"></div>
+    </div>
+  </section>
+
+  <section class="alert-section" id="alerts">
+    <div class="alert-card">
+      <div class="alert-left">
+        <span class="alert-badge">Stay Safe</span>
+        <h2>Get SMS Alerts</h2>
+        <p>Receive instant notifications when AQI levels become unhealthy in your city. Never miss a critical air quality update.</p>
+        <ul class="alert-features">
+          <li><span class="check">OK</span> Instant SMS when AQI exceeds threshold</li>
+          <li><span class="check">OK</span> Customizable city selection</li>
+          <li><span class="check">OK</span> Live city-based monitoring</li>
+          <li><span class="check">OK</span> Free app flow - SMS cost depends on provider</li>
+        </ul>
+      </div>
+      <div class="alert-right">
+        <form id="alertForm" class="alert-form">
+          <div class="form-group">
+            <label for="userName">Full Name</label>
+            <input type="text" id="userName" placeholder="John Doe" required />
+          </div>
+          <div class="form-group">
+            <label for="userPhone">Phone Number</label>
+            <input type="tel" id="userPhone" placeholder="+919876543210" required />
+          </div>
+          <div class="form-group">
+            <label for="userCity">Select City</label>
+            <select id="userCity" required>
+              <option value="" disabled selected>Choose a city</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="aqiThreshold">Alert when AQI exceeds</label>
+            <input type="range" id="aqiThreshold" min="50" max="400" value="150" />
+            <span class="range-val" id="rangeVal">150</span>
+          </div>
+          <button type="submit" class="submit-btn">Subscribe for Alerts</button>
+        </form>
+        <p id="formStatus" class="form-status"></p>
+        <div class="form-success hidden" id="formSuccess">
+          <span class="success-icon">Done</span>
+          <h3>You are subscribed</h3>
+          <p>You will receive SMS alerts when AQI crosses your threshold.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="about-section" id="about">
+    <h2>Understanding AQI</h2>
+    <div class="legend-grid">
+      <div class="legend-item" style="--clr: #4ade80"><span class="legend-dot"></span><strong>0-50 Good</strong><p>Air quality is satisfactory.</p></div>
+      <div class="legend-item" style="--clr: #facc15"><span class="legend-dot"></span><strong>51-100 Moderate</strong><p>Acceptable for most people.</p></div>
+      <div class="legend-item" style="--clr: #fb923c"><span class="legend-dot"></span><strong>101-200 Unhealthy</strong><p>Sensitive groups may be affected.</p></div>
+      <div class="legend-item" style="--clr: #f87171"><span class="legend-dot"></span><strong>201-300 Very Unhealthy</strong><p>Health alert - everyone may be affected.</p></div>
+      <div class="legend-item" style="--clr: #c084fc"><span class="legend-dot"></span><strong>301-500 Hazardous</strong><p>Emergency conditions for entire population.</p></div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <p>Copyright 2026 AirPulse - Built for cleaner air</p>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
