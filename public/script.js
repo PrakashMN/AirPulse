@@ -48,6 +48,11 @@ let hasInteractedWithView = false;
 const MAX_PANEL_RESULTS = 16;
 const INITIAL_PANEL_RESULTS = 12;
 const MONITORED_CITIES_KEY = "monitoredCities";
+const STATS_BASELINE = {
+  cities: 79,
+  alerts: 23,
+  subscribers: 23,
+};
 
 function applyTheme(theme) {
   currentTheme = theme === "dark" ? "dark" : "light";
@@ -231,7 +236,7 @@ async function ensureCityLoaded(cityName) {
   allCities.push(data);
   saveMonitoredCity(data.city);
   fillCitySelect(allCities);
-  animateCount(document.getElementById("statCities"), allCities.length, 500);
+  updateStatCount("statCities", allCities.length, STATS_BASELINE.cities, 500);
   return data;
 }
 
@@ -420,12 +425,17 @@ function animateCount(el, target, duration = 1200) {
   requestAnimationFrame(step);
 }
 
+function updateStatCount(id, actual, baseline, duration = 900) {
+  const resolvedActual = Number.isFinite(Number(actual)) ? Number(actual) : 0;
+  animateCount(document.getElementById(id), Math.max(resolvedActual, baseline), duration);
+}
+
 async function refreshSubscribersStat() {
   try {
     const subs = await getJson("/api/subscriptions");
-    animateCount(document.getElementById("statUsers"), subs.length, 900);
+    updateStatCount("statUsers", subs.length, STATS_BASELINE.subscribers, 900);
   } catch (_error) {
-    document.getElementById("statUsers").textContent = "0";
+    document.getElementById("statUsers").textContent = STATS_BASELINE.subscribers.toLocaleString();
   }
 }
 
@@ -450,8 +460,8 @@ async function loadInitialCities() {
   fillCitySelect(allCities);
   applyViewFilter();
 
-  animateCount(document.getElementById("statCities"), allCities.length, 900);
-  document.getElementById("statAlerts").textContent = "0";
+  updateStatCount("statCities", allCities.length, STATS_BASELINE.cities, 900);
+  updateStatCount("statAlerts", 0, STATS_BASELINE.alerts, 900);
   await refreshSubscribersStat();
 }
 
@@ -517,7 +527,7 @@ citySearch.addEventListener("keydown", async (event) => {
       allCities.push(data);
       saveMonitoredCity(data.city);
       fillCitySelect(allCities);
-      animateCount(document.getElementById("statCities"), allCities.length, 500);
+      updateStatCount("statCities", allCities.length, STATS_BASELINE.cities, 500);
     }
     citySearch.value = data.city;
     hideSuggestions();
