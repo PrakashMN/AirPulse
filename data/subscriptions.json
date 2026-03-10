@@ -1,1 +1,29 @@
-[]
+[
+  {
+    "id": "1773043276249-xri3qr",
+    "name": "Prakash Nagaral",
+    "phone": "+919008081050",
+    "city": "Bengaluru",
+    "threshold": 150,
+    "createdAt": "2026-03-09T08:01:16.249Z",
+    "lastNotifiedAt": null
+  },
+  {
+    "id": "1773049906552-r650vi",
+    "name": "Pradeep Nagaral",
+    "phone": "+918722930103",
+    "city": "Ahmedabad",
+    "threshold": 150,
+    "createdAt": "2026-03-09T09:51:46.552Z",
+    "lastNotifiedAt": "2026-03-10T20:31:50.399Z"
+  },
+  {
+    "id": "1773172376772-2ysqqw",
+    "name": "Prakash Nagaral",
+    "phone": "+919008081050",
+    "city": "Belgaum",
+    "threshold": 90,
+    "createdAt": "2026-03-10T19:52:56.773Z",
+    "lastNotifiedAt": "2026-03-10T20:25:21.398Z"
+  }
+]

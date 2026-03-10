@@ -28,13 +28,67 @@ const detailHeader = document.getElementById("detailHeader");
 const pollutantGrid = document.getElementById("pollutantGrid");
 const aqiChart = document.getElementById("aqiChart");
 const citySearch = document.getElementById("citySearch");
+const searchSuggestions = document.getElementById("searchSuggestions");
 const citySelect = document.getElementById("userCity");
 const formStatus = document.getElementById("formStatus");
 const formSuccess = document.getElementById("formSuccess");
+const themeToggle = document.getElementById("themeToggle");
+const themeToggleLabel = document.getElementById("themeToggleLabel");
+const themeToggleIcon = document.getElementById("themeToggleIcon");
 
 let allCities = [];
 let visibleCities = [];
 let activeFilter = "all";
+let currentTheme = "light";
+let suggestionItems = [];
+let activeSuggestionIndex = -1;
+let suggestionRequestId = 0;
+let suggestionDebounce = null;
+let hasInteractedWithView = false;
+const MAX_PANEL_RESULTS = 16;
+const INITIAL_PANEL_RESULTS = 12;
+const MONITORED_CITIES_KEY = "monitoredCities";
+
+function applyTheme(theme) {
+  currentTheme = theme === "dark" ? "dark" : "light";
+  document.body.setAttribute("data-theme", currentTheme);
+  localStorage.setItem("theme", currentTheme);
+
+  if (themeToggleLabel && themeToggleIcon) {
+    if (currentTheme === "dark") {
+      themeToggleLabel.textContent = "Light";
+      themeToggleIcon.textContent = "sun";
+    } else {
+      themeToggleLabel.textContent = "Dark";
+      themeToggleIcon.textContent = "moon";
+    }
+  }
+}
+
+function initTheme() {
+  const saved = localStorage.getItem("theme");
+  applyTheme(saved === "dark" ? "dark" : "light");
+}
+
+function loadSavedCities() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(MONITORED_CITIES_KEY) || "[]");
+    return Array.isArray(saved) ? saved.filter(Boolean) : [];
+  } catch (_error) {
+    return [];
+  }
+}
+
+function saveMonitoredCity(cityName) {
+  const normalized = String(cityName || "").trim();
+  if (!normalized) return;
+
+  const saved = loadSavedCities();
+  if (saved.some((city) => city.toLowerCase() === normalized.toLowerCase())) return;
+
+  saved.push(normalized);
+  localStorage.setItem(MONITORED_CITIES_KEY, JSON.stringify(saved));
+}
 
 function levelFromAqi(aqi) {
   if (aqi <= 50) return { label: "Good", color: "#4ade80", filter: "good" };
@@ -68,6 +122,7 @@ function formatObserved(observedAt) {
   if (!observedAt) return "Updated recently";
   const dt = new Date(observedAt);
   if (Number.isNaN(dt.getTime())) return "Updated recently";
+  if (dt.getTime() > Date.now()) return "Updated recently";
   return `Updated ${dt.toLocaleString()}`;
 }
 
@@ -161,6 +216,115 @@ function renderCards(list) {
   });
 }
 
+function hideSuggestions() {
+  suggestionItems = [];
+  activeSuggestionIndex = -1;
+  searchSuggestions.innerHTML = "";
+  searchSuggestions.classList.add("hidden");
+}
+
+async function ensureCityLoaded(cityName) {
+  const existing = allCities.find((city) => city.city.toLowerCase() === cityName.toLowerCase());
+  if (existing) return existing;
+
+  const data = await fetchCityWithRetry(cityName, 1);
+  allCities.push(data);
+  saveMonitoredCity(data.city);
+  fillCitySelect(allCities);
+  animateCount(document.getElementById("statCities"), allCities.length, 500);
+  return data;
+}
+
+async function applySuggestion(index) {
+  const item = suggestionItems[index];
+  if (!item) return;
+  try {
+    const loadedCity = await ensureCityLoaded(item.city);
+    citySearch.value = loadedCity.city;
+    hideSuggestions();
+    applyViewFilter();
+  } catch (error) {
+    hideSuggestions();
+    grid.insertAdjacentHTML("afterbegin", "<p class='error'>Could not fetch that city right now.</p>");
+    setTimeout(() => {
+      const err = grid.querySelector(".error");
+      if (err) err.remove();
+    }, 2500);
+  }
+}
+
+function renderSuggestionsFromItems(items) {
+  suggestionItems = items.slice(0, 6);
+
+  if (!suggestionItems.length) {
+    hideSuggestions();
+    return;
+  }
+
+  activeSuggestionIndex = -1;
+  searchSuggestions.innerHTML = suggestionItems
+    .map(
+      (city, index) => `
+      <button class="search-suggestion" type="button" data-index="${index}">
+        <span>
+          <span class="search-suggestion-city">${city.city}</span>
+          <span class="search-suggestion-region">${city.region || "-"}</span>
+        </span>
+        <span class="search-suggestion-aqi">${city.aqi != null ? `AQI ${city.aqi}` : city.country || "India"}</span>
+      </button>`
+    )
+    .join("");
+  searchSuggestions.classList.remove("hidden");
+}
+
+function getLocalSuggestions(query) {
+  const term = query.trim().toLowerCase();
+  const base = allCities.length ? allCities : fallbackCities;
+  return [...new Map(base.map((city) => [city.city.toLowerCase(), city])).values()]
+    .filter((city) =>
+      city.city.toLowerCase().includes(term) || String(city.region || "").toLowerCase().includes(term)
+    )
+    .slice(0, 6);
+}
+
+async function loadSuggestions(query) {
+  const term = query.trim();
+  if (term.length < 2) {
+    hideSuggestions();
+    return;
+  }
+
+  const requestId = ++suggestionRequestId;
+  const localSuggestions = getLocalSuggestions(term);
+  if (localSuggestions.length) {
+    renderSuggestionsFromItems(localSuggestions);
+  }
+
+  try {
+    const remoteSuggestions = await getJson(`/api/cities?q=${encodeURIComponent(term)}&limit=6`);
+    if (requestId !== suggestionRequestId) return;
+    if (Array.isArray(remoteSuggestions) && remoteSuggestions.length) {
+      renderSuggestionsFromItems(remoteSuggestions);
+      return;
+    }
+  } catch (_error) {
+    // Fall back to already loaded cities when remote suggestions fail.
+  }
+
+  if (requestId !== suggestionRequestId) return;
+  renderSuggestionsFromItems(getLocalSuggestions(term));
+}
+
+function setActiveSuggestion(index) {
+  const buttons = searchSuggestions.querySelectorAll(".search-suggestion");
+  if (!buttons.length) return;
+
+  activeSuggestionIndex = index;
+  buttons.forEach((button, buttonIndex) => {
+    button.classList.toggle("active", buttonIndex === activeSuggestionIndex);
+  });
+}
+
 function applyViewFilter() {
   const search = citySearch.value.trim().toLowerCase();
   let next = allCities;
@@ -176,7 +340,9 @@ function applyViewFilter() {
   }
 
   visibleCities = next;
-  renderCards(visibleCities);
+  const panelLimit =
+    !hasInteractedWithView && activeFilter === "all" && !search ? INITIAL_PANEL_RESULTS : MAX_PANEL_RESULTS;
+  renderCards(visibleCities.slice(0, panelLimit));
 }
 
 function showDetail(c) {
@@ -264,8 +430,9 @@ async function refreshSubscribersStat() {
 }
 
 async function loadInitialCities() {
+  const initialCities = [...new Set([...seedCities, ...loadSavedCities()])];
   const loaded = [];
-  for (const city of seedCities) {
+  for (const city of initialCities) {
     try {
       const data = await fetchCityWithRetry(city, 1);
       loaded.push(data);
@@ -291,6 +458,7 @@ async function loadInitialCities() {
 document.getElementById("filterTabs").addEventListener("click", (event) => {
   if (!event.target.classList.contains("tab")) return;
 
+  hasInteractedWithView = true;
   document.querySelectorAll(".tab").forEach((tab) => tab.classList.remove("active"));
   event.target.classList.add("active");
   activeFilter = event.target.dataset.filter || "all";
@@ -298,15 +466,46 @@ document.getElementById("filterTabs").addEventListener("click", (event) => {
 });
 
 citySearch.addEventListener("input", () => {
+  hasInteractedWithView = true;
   document.querySelectorAll(".tab").forEach((tab) => tab.classList.remove("active"));
   document.querySelector('.tab[data-filter="all"]').classList.add("active");
   activeFilter = "all";
   applyViewFilter();
+  clearTimeout(suggestionDebounce);
+  suggestionDebounce = setTimeout(() => {
+    loadSuggestions(citySearch.value);
+  }, 60);
 });
 
 citySearch.addEventListener("keydown", async (event) => {
+  if (event.key === "ArrowDown") {
+    if (!suggestionItems.length) return;
+    event.preventDefault();
+    const nextIndex = activeSuggestionIndex < suggestionItems.length - 1 ? activeSuggestionIndex + 1 : 0;
+    setActiveSuggestion(nextIndex);
+    return;
+  }
+
+  if (event.key === "ArrowUp") {
+    if (!suggestionItems.length) return;
+    event.preventDefault();
+    const nextIndex = activeSuggestionIndex > 0 ? activeSuggestionIndex - 1 : suggestionItems.length - 1;
+    setActiveSuggestion(nextIndex);
+    return;
+  }
+
+  if (event.key === "Escape") {
+    hideSuggestions();
+    return;
+  }
+
   if (event.key !== "Enter") return;
   event.preventDefault();
+
+  if (activeSuggestionIndex >= 0) {
+    await applySuggestion(activeSuggestionIndex);
+    return;
+  }
 
   const city = citySearch.value.trim();
   if (!city) return;
@@ -316,10 +515,12 @@ citySearch.addEventListener("keydown", async (event) => {
     const exists = allCities.find((c) => c.city.toLowerCase() === data.city.toLowerCase());
     if (!exists) {
       allCities.push(data);
+      saveMonitoredCity(data.city);
       fillCitySelect(allCities);
       animateCount(document.getElementById("statCities"), allCities.length, 500);
     }
     citySearch.value = data.city;
+    hideSuggestions();
     applyViewFilter();
   } catch (error) {
     console.error(error.message);
@@ -329,6 +530,17 @@ citySearch.addEventListener("keydown", async (event) => {
       if (err) err.remove();
     }, 2500);
   }
+});
+
+searchSuggestions.addEventListener("click", async (event) => {
+  const button = event.target.closest(".search-suggestion");
+  if (!button) return;
+  await applySuggestion(Number(button.dataset.index));
+});
+
+document.addEventListener("click", (event) => {
+  if (event.target === citySearch || searchSuggestions.contains(event.target)) return;
+  hideSuggestions();
 });
 
 document.getElementById("backBtn").addEventListener("click", () => {
@@ -372,6 +584,12 @@ document.getElementById("alertForm").addEventListener("submit", async (event) =>
     formStatus.textContent = error.message;
   }
 });
+
+themeToggle?.addEventListener("click", () => {
+  applyTheme(currentTheme === "dark" ? "light" : "dark");
+});
+
+initTheme();
 
 loadInitialCities().catch((error) => {
   grid.innerHTML = `<p class='error'>${error.message}</p>`;

@@ -3,7 +3,8 @@
 City AQI dashboard with citizen SMS alerts.
 
 ## Features
-- Live city AQI lookup using Open-Meteo geocoding + air quality APIs.
+- Live city AQI lookup using WAQI feed data.
+- India city suggestions using Open-Meteo geocoding.
 - Dashboard with AQI category and key pollutant values.
 - Citizen subscription endpoint for AQI threshold alerts.
 - Scheduled alert worker that checks AQI every N minutes.
@@ -24,14 +25,17 @@ City AQI dashboard with citizen SMS alerts.
    copy .env.example .env
    ```
 3. (Optional) Set Twilio credentials in `.env`:
+4. Set WAQI token in `.env`:
+   - `WAQI_TOKEN`
+5. (Optional) Set Twilio credentials in `.env`:
    - `TWILIO_ACCOUNT_SID`
    - `TWILIO_AUTH_TOKEN`
    - `TWILIO_FROM_PHONE`
-4. Start app:
+6. Start app:
    ```bash
    npm start
    ```
-5. Open `http://localhost:3000`
+7. Open `http://localhost:3000`
 
 ## API
 - `GET /api/health`
