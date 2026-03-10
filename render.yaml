@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: air-quality
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: 22.17.1
+      - key: WAQI_TOKEN
+        sync: false
+      - key: ALERT_CHECK_INTERVAL_MIN
+        value: 15
+      - key: ALERT_COOLDOWN_MIN
+        value: 360
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_FROM_PHONE
+        sync: false

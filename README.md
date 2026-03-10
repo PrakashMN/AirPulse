@@ -55,3 +55,19 @@ City AQI dashboard with citizen SMS alerts.
 - Runs every `ALERT_CHECK_INTERVAL_MIN` (default `15`).
 - Sends alert when `AQI >= threshold`.
 - Per phone+city cooldown via `ALERT_COOLDOWN_MIN` (default `360`).
+
+## Deploy
+
+### Render
+1. Push this repo to GitHub.
+2. Create a new Web Service on Render and connect the repo.
+3. Render will detect [`render.yaml`](c:\Users\hp\Desktop\Works\Air-Quality\render.yaml).
+4. Set `WAQI_TOKEN` in Render dashboard.
+5. Set Twilio env vars only if you want real SMS alerts:
+   - `TWILIO_ACCOUNT_SID`
+   - `TWILIO_AUTH_TOKEN`
+   - `TWILIO_FROM_PHONE`
+6. Deploy.
+
+Health check:
+- `/api/health`
