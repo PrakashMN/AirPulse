@@ -123,7 +123,17 @@ async function readSubscriptions() {
   }
 }
 
+async function ensureSubscriptionsStore() {
+  await fs.mkdir(path.dirname(SUBS_FILE), { recursive: true });
+  try {
+    await fs.access(SUBS_FILE);
+  } catch (_error) {
+    await fs.writeFile(SUBS_FILE, "[]", "utf8");
+  }
+}
+
 async function writeSubscriptions(subscriptions) {
+  await ensureSubscriptionsStore();
   await fs.writeFile(SUBS_FILE, JSON.stringify(subscriptions, null, 2), "utf8");
 }
 
@@ -478,6 +488,7 @@ app.get("/api/cities", async (req, res) => {
 
 app.get("/api/subscriptions", async (_req, res) => {
   try {
+    await ensureSubscriptionsStore();
     const subscriptions = await readSubscriptions();
     res.json(subscriptions);
   } catch (error) {
@@ -586,9 +597,11 @@ setInterval(() => {
   });
 }, CHECK_INTERVAL_MIN * 60 * 1000);
 
-runAlertWorker().catch((error) => {
-  console.error(`Initial alert worker run failed: ${error.message}`);
-});
+ensureSubscriptionsStore()
+  .then(() => runAlertWorker())
+  .catch((error) => {
+    console.error(`Initial alert worker run failed: ${error.message}`);
+  });
 
 function startServer(port) {
   const server = app.listen(port, () => {

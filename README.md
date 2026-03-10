@@ -13,7 +13,7 @@ City AQI dashboard with citizen SMS alerts.
 ## Tech
 - Node.js + Express
 - Static frontend (HTML/CSS/JS)
-- File-based subscription store (`data/subscriptions.json`)
+- File-based subscription store created automatically at runtime (`data/subscriptions.json`)
 
 ## Setup
 1. Install dependencies:
