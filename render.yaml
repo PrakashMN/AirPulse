@@ -21,3 +21,5 @@ services:
         sync: false
       - key: TWILIO_FROM_PHONE
         sync: false
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false

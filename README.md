@@ -1,6 +1,6 @@
 # Air Quality Monitoring & Citizen Alert App
 
-City AQI dashboard with citizen SMS alerts.
+City AQI dashboard with Telegram & SMS alerts.
 
 ## Features
 
@@ -8,8 +8,9 @@ City AQI dashboard with citizen SMS alerts.
 - India city suggestions using Open-Meteo geocoding
 - Dashboard with AQI category and key pollutant values (PM2.5, PM10, CO, NO2, Ozone)
 - Citizen subscription endpoint for AQI threshold alerts
-- Scheduled alert worker that checks AQI at configurable intervals
+- **Telegram bot** for free, unlimited alerts (recommended)
 - Twilio SMS integration, with console fallback when credentials are missing
+- Scheduled alert worker that checks AQI at configurable intervals
 
 ## Tech Stack
 
@@ -67,12 +68,19 @@ WAQI_TOKEN=your_waqi_api_token_here
 TWILIO_ACCOUNT_SID=your_twilio_account_sid
 TWILIO_AUTH_TOKEN=your_twilio_auth_token
 TWILIO_FROM_PHONE=your_twilio_phone_number
+
+# Optional: Free Telegram alerts (recommended over SMS)
+TELEGRAM_BOT_TOKEN=your_telegram_bot_token
+
+# Optional: set to false on any secondary instance so only one process long-polls Telegram
+TELEGRAM_BOT_POLLING=true
 ```
 
 #### Where to Get API Keys
 
 - **WAQI Token**: Sign up at [WAQI](https://aqicn.org/data-platform/token/) to get a free API token
 - **Twilio Credentials**: Sign up at [Twilio](https://www.twilio.com/) for SMS alerts
+- **Telegram Bot Token**: Message [@BotFather](https://t.me/BotFather) on Telegram and use `/newbot` to create a bot. Copy the token it gives you.
 
 ### 4. Start the Application
 
@@ -123,8 +131,26 @@ POST /api/subscribe
 ## Alert Behavior
 
 - Runs every `ALERT_CHECK_INTERVAL_MIN` minutes (default: `15`)
-- Sends SMS alert when `AQI >= user_threshold`
-- Per phone+city cooldown via `ALERT_COOLDOWN_MIN` (default: `360` minutes)
+- Sends alert (SMS + Telegram) when `AQI >= user_threshold`
+- Per-subscriber cooldown via `ALERT_COOLDOWN_MIN` (default: `360` minutes)
+
+## Telegram Bot
+
+Subscribe and manage alerts directly via Telegram:
+
+| Command | Description |
+|---------|-------------|
+| `/start` | Welcome message with instructions |
+| `/subscribe Delhi 150` | Subscribe to AQI alerts for a city |
+| `/unsubscribe Delhi` | Stop alerts for a city |
+| `/list` | Show your active subscriptions |
+
+No SMS costs, no phone number required — just a free Telegram account.
+
+Important: only one running process can long-poll a given Telegram bot token at a time.
+If you keep the app running locally while the deployed instance is also active, Telegram
+will return a `409 Conflict` and the extra poller should be disabled with
+`TELEGRAM_BOT_POLLING=false`.
 
 ---
 
@@ -138,6 +164,7 @@ POST /api/subscribe
 4. Set the following environment variables in the Render dashboard:
    - `WAQI_TOKEN` (required)
    - `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_PHONE` (optional, for real SMS)
+   - `TELEGRAM_BOT_TOKEN` (optional, for free Telegram alerts)
 5. Click Deploy
 
 Health check endpoint: `/api/health`
@@ -156,7 +183,9 @@ Air-Quality/
 │   └── style.css
 ├── .env                   # Environment variables (create from example)
 ├── .gitignore
+├── db.js                  # Shared database helpers
 ├── package.json
 ├── render.yaml            # Render deployment config
-└── server.js              # Main Express server
+├── server.js              # Main Express server
+└── telegram-bot.js        # Telegram bot (free alerts)
 ```

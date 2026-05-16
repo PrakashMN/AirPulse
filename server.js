@@ -1,15 +1,14 @@
 require("dotenv").config();
 
 const express = require("express");
-const fs = require("fs/promises");
 const path = require("path");
+const db = require("./db");
 
 const app = express();
 
 const PORT = Number(process.env.PORT || 3000);
 const CHECK_INTERVAL_MIN = Number(process.env.ALERT_CHECK_INTERVAL_MIN || 15);
 const ALERT_COOLDOWN_MIN = Number(process.env.ALERT_COOLDOWN_MIN || 360);
-const SUBS_FILE = path.join(__dirname, "data", "subscriptions.json");
 const API_TIMEOUT_MS = Number(process.env.API_TIMEOUT_MS || 8000);
 const AQI_CACHE_TTL_MS = Number(process.env.AQI_CACHE_TTL_MS || 600000);
 const CITY_SEARCH_CACHE_TTL_MS = Number(process.env.CITY_SEARCH_CACHE_TTL_MS || 300000);
@@ -20,6 +19,7 @@ const DASHBOARD_DATA_CONTROL = {
   mockIntensity: 100,
 };
 const WAQI_TOKEN = String(process.env.WAQI_TOKEN || "").trim();
+const TELEGRAM_BOT_TOKEN = String(process.env.TELEGRAM_BOT_TOKEN || "").trim();
 
 const lastAlertAt = new Map();
 const aqiCache = new Map();
@@ -82,21 +82,21 @@ const fallbackAqiByCity = new Map(
       category: "Moderate",
       pollutants: { pm25: 48, pm10: 82, co: 1.0, no2: 28, ozone: 38 },
     },
+    {
+      city: "Sindagi",
+      region: "Karnataka",
+      country: "India",
+      coordinates: { latitude: 16.9167, longitude: 75.3667 },
+      observedAt: null,
+      aqi: 104,
+      category: "Unhealthy for Sensitive Groups",
+      pollutants: { pm25: 54, pm10: 88, co: 1.1, no2: 30, ozone: 36 },
+    },
   ].map((item) => [item.city.toLowerCase(), item])
 );
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
-
-function toTitleCase(input) {
-  return input
-    .trim()
-    .toLowerCase()
-    .split(" ")
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
-}
 
 function nowIso() {
   return new Date().toISOString();
@@ -110,31 +110,6 @@ function aqiCategory(aqi) {
   if (aqi <= 200) return "Unhealthy";
   if (aqi <= 300) return "Very Unhealthy";
   return "Hazardous";
-}
-
-async function readSubscriptions() {
-  try {
-    const raw = await fs.readFile(SUBS_FILE, "utf8");
-    const data = JSON.parse(raw);
-    return Array.isArray(data) ? data : [];
-  } catch (error) {
-    if (error.code === "ENOENT") return [];
-    throw error;
-  }
-}
-
-async function ensureSubscriptionsStore() {
-  await fs.mkdir(path.dirname(SUBS_FILE), { recursive: true });
-  try {
-    await fs.access(SUBS_FILE);
-  } catch (_error) {
-    await fs.writeFile(SUBS_FILE, "[]", "utf8");
-  }
-}
-
-async function writeSubscriptions(subscriptions) {
-  await ensureSubscriptionsStore();
-  await fs.writeFile(SUBS_FILE, JSON.stringify(subscriptions, null, 2), "utf8");
 }
 
 function findLatestHourlyValue(timestamps, values) {
@@ -203,7 +178,7 @@ function mockCityAqi(city) {
   const category = aqiCategory(aqi);
 
   return {
-    city: fallback?.city || toTitleCase(normalized),
+    city: fallback?.city || db.toTitleCase(normalized),
     region: fallback?.region || "Mock Region",
     country: fallback?.country || "Mock Country",
     coordinates: fallback?.coordinates || { latitude: null, longitude: null },
@@ -251,7 +226,7 @@ function parseWaqiCityName(rawName, fallbackCity) {
   const text = String(rawName || "").trim();
   if (!text) {
     return {
-      city: toTitleCase(fallbackCity),
+      city: db.toTitleCase(fallbackCity),
       region: null,
       country: null,
     };
@@ -259,7 +234,7 @@ function parseWaqiCityName(rawName, fallbackCity) {
 
   const parts = text.split(",").map((part) => part.trim()).filter(Boolean);
   return {
-    city: parts[0] || toTitleCase(fallbackCity),
+    city: parts[0] || db.toTitleCase(fallbackCity),
     region: parts[1] || null,
     country: parts[parts.length - 1] || null,
   };
@@ -403,9 +378,26 @@ async function fetchCityAqiWithFallback(city) {
   try {
     return await fetchCityAqi(city);
   } catch (_error) {
-    const fallback = fallbackCityAqi(city);
-    if (fallback) return fallback;
-    return null;
+    // try Open-Meteo free air quality API as second fallback
+    try {
+      const geo = await geocodeCity(city);
+      const data = await fetchAqiByCoordinates(geo.latitude, geo.longitude, geo.timezone);
+      return {
+        city: geo.name,
+        region: geo.admin1 || null,
+        country: geo.country || null,
+        coordinates: { latitude: geo.latitude, longitude: geo.longitude },
+        observedAt: data.observedAt || nowIso(),
+        aqi: data.aqi,
+        category: data.category,
+        pollutants: data.pollutants,
+        source: "open-meteo",
+      };
+    } catch (_geoError) {
+      const fallback = fallbackCityAqi(city);
+      if (fallback) return fallback;
+      return null;
+    }
   }
 }
 
@@ -488,8 +480,8 @@ app.get("/api/cities", async (req, res) => {
 
 app.get("/api/subscriptions", async (_req, res) => {
   try {
-    await ensureSubscriptionsStore();
-    const subscriptions = await readSubscriptions();
+    await db.ensureSubscriptionsStore();
+    const subscriptions = await db.readSubscriptions();
     res.json(subscriptions);
   } catch (error) {
     res.status(500).json({ error: error.message || "Unable to read subscriptions" });
@@ -519,15 +511,15 @@ app.post("/api/subscribe", async (req, res) => {
 
     const normalized = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      name: toTitleCase(name),
+      name: db.toTitleCase(name),
       phone,
-      city: toTitleCase(city),
+      city: db.toTitleCase(city),
       threshold: Math.round(threshold),
       createdAt: nowIso(),
       lastNotifiedAt: null,
     };
 
-    const subscriptions = await readSubscriptions();
+    const subscriptions = await db.readSubscriptions();
     const duplicate = subscriptions.find(
       (s) => s.phone === normalized.phone && s.city.toLowerCase() === normalized.city.toLowerCase()
     );
@@ -539,7 +531,7 @@ app.post("/api/subscribe", async (req, res) => {
     }
 
     subscriptions.push(normalized);
-    await writeSubscriptions(subscriptions);
+    await db.writeSubscriptions(subscriptions);
 
     return res.status(201).json(normalized);
   } catch (error) {
@@ -548,15 +540,15 @@ app.post("/api/subscribe", async (req, res) => {
 });
 
 async function runAlertWorker() {
-  const subscriptions = await readSubscriptions();
+  const subscriptions = await db.readSubscriptions();
   if (subscriptions.length === 0) return;
 
   const cityCache = new Map();
   const cooldownMs = ALERT_COOLDOWN_MIN * 60 * 1000;
 
   for (const subscription of subscriptions) {
-    const key = `${subscription.phone}|${subscription.city.toLowerCase()}`;
-    const last = lastAlertAt.get(key);
+    const notifKey = `${subscription.phone || subscription.telegramChatId}|${subscription.city.toLowerCase()}`;
+    const last = lastAlertAt.get(notifKey);
 
     if (last && Date.now() - last < cooldownMs) {
       continue;
@@ -578,17 +570,34 @@ async function runAlertWorker() {
 
     const body = `AQI Alert: ${cityData.city} is ${cityData.aqi} (${cityData.category}). Threshold ${subscription.threshold} crossed.`;
 
-    try {
-      await sendSmsTwilio({ to: subscription.phone, body });
-      lastAlertAt.set(key, Date.now());
+    let notified = false;
+
+    if (subscription.phone) {
+      try {
+        await sendSmsTwilio({ to: subscription.phone, body });
+        notified = true;
+        console.log(`SMS alert sent to ${subscription.phone} for ${subscription.city}`);
+      } catch (error) {
+        console.error(`SMS send failed to ${subscription.phone}: ${error.message}`);
+      }
+    }
+
+    if (subscription.telegramChatId) {
+      const tgBody = `*AirPulse Alert* \u26a0\ufe0f\n\nCity: *${cityData.city}*\nAQI: *${cityData.aqi}* (${cityData.category})\nThreshold: ${subscription.threshold}\n\nStay indoors and limit outdoor exposure.`;
+      const result = await sendTelegramAlert(subscription.telegramChatId, tgBody);
+      if (result.sent) {
+        notified = true;
+        console.log(`Telegram alert sent to ${subscription.telegramChatId} for ${subscription.city}`);
+      }
+    }
+
+    if (notified) {
+      lastAlertAt.set(notifKey, Date.now());
       subscription.lastNotifiedAt = nowIso();
-      console.log(`Alert sent to ${subscription.phone} for ${subscription.city}`);
-    } catch (error) {
-      console.error(`SMS send failed to ${subscription.phone}: ${error.message}`);
     }
   }
 
-  await writeSubscriptions(subscriptions);
+  await db.writeSubscriptions(subscriptions);
 }
 
 setInterval(() => {
@@ -597,11 +606,24 @@ setInterval(() => {
   });
 }, CHECK_INTERVAL_MIN * 60 * 1000);
 
-ensureSubscriptionsStore()
+db.ensureSubscriptionsStore()
   .then(() => runAlertWorker())
   .catch((error) => {
     console.error(`Initial alert worker run failed: ${error.message}`);
   });
+
+const telegramBot = require("./telegram-bot");
+
+async function sendTelegramAlert(chatId, body) {
+  if (!TELEGRAM_BOT_TOKEN || !chatId) return { sent: false, fallback: true };
+  try {
+    await telegramBot.sendMessage(chatId, body);
+    return { sent: true, fallback: false };
+  } catch (error) {
+    console.error(`Telegram send failed to ${chatId}: ${error.message}`);
+    return { sent: false, fallback: true };
+  }
+}
 
 function startServer(port) {
   const server = app.listen(port, () => {
@@ -619,4 +641,7 @@ function startServer(port) {
   });
 }
 
+telegramBot.start(TELEGRAM_BOT_TOKEN);
 startServer(PORT);
+
+module.exports = { ...db };

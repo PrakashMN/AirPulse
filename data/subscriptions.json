@@ -1,29 +1,61 @@
 [
   {
-    "id": "1773043276249-xri3qr",
+    "id": "1778931043920-29bc0m",
     "name": "Prakash Nagaral",
     "phone": "+919008081050",
-    "city": "Bengaluru",
-    "threshold": 150,
-    "createdAt": "2026-03-09T08:01:16.249Z",
+    "city": "Ito",
+    "threshold": 60,
+    "createdAt": "2026-05-16T11:30:43.920Z",
     "lastNotifiedAt": null
   },
   {
-    "id": "1773049906552-r650vi",
-    "name": "Pradeep Nagaral",
-    "phone": "+918722930103",
-    "city": "Ahmedabad",
-    "threshold": 150,
-    "createdAt": "2026-03-09T09:51:46.552Z",
-    "lastNotifiedAt": "2026-03-11T21:56:41.953Z"
+    "id": "1778931168873-29r93r",
+    "telegramChatId": 6093539035,
+    "name": "Telegram:6093539035",
+    "phone": "",
+    "city": "Delhi",
+    "threshold": 10,
+    "createdAt": "2026-05-16T11:32:48.873Z",
+    "lastNotifiedAt": "2026-05-16T11:43:27.898Z"
   },
   {
-    "id": "1773172376772-2ysqqw",
-    "name": "Prakash Nagaral",
-    "phone": "+919008081050",
-    "city": "Belgaum",
-    "threshold": 90,
-    "createdAt": "2026-03-10T19:52:56.773Z",
-    "lastNotifiedAt": "2026-03-10T20:25:21.398Z"
+    "id": "1778931279196-ea3ew8",
+    "telegramChatId": 6093539035,
+    "name": "Telegram:6093539035",
+    "phone": "",
+    "city": "Belagavi",
+    "threshold": 10,
+    "createdAt": "2026-05-16T11:34:39.196Z",
+    "lastNotifiedAt": "2026-05-16T11:43:28.657Z"
+  },
+  {
+    "id": "1778931298412-8izct8",
+    "telegramChatId": 6093539035,
+    "name": "Telegram:6093539035",
+    "phone": "",
+    "city": "Korwar",
+    "threshold": 10,
+    "createdAt": "2026-05-16T11:34:58.412Z",
+    "lastNotifiedAt": "2026-05-16T11:43:29.476Z"
+  },
+  {
+    "id": "1778931466347-krdr4s",
+    "telegramChatId": 6093539035,
+    "name": "Telegram:6093539035",
+    "phone": "",
+    "city": "Karwar",
+    "threshold": 10,
+    "createdAt": "2026-05-16T11:37:46.347Z",
+    "lastNotifiedAt": "2026-05-16T11:43:30.217Z"
+  },
+  {
+    "id": "1778931562584-2dtmzv",
+    "telegramChatId": 6093539035,
+    "name": "Telegram:6093539035",
+    "phone": "",
+    "city": "Sindagi",
+    "threshold": 10,
+    "createdAt": "2026-05-16T11:39:22.584Z",
+    "lastNotifiedAt": "2026-05-16T11:43:30.968Z"
   }
 ]
